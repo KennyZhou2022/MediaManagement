@@ -1,11 +1,11 @@
 version: "3"
 
 services:
-  rss-backend:
+  media-management:
     build: .
-    container_name: rss-backend
+    container_name: media-management
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app
+      - ./storage:/app/storage
     restart: unless-stopped
