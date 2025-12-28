@@ -6,14 +6,13 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from src.general.general_class import RSSItem
 from transmission_rpc import Client
-from src.general.general_constant import STORAGE_DIR, STORAGE_PATH, LOG_DIR, DEFAULT_TRANSMISSION_PORT, DATETIME_FORMAT, TIME_ZONE
-
+import src.general.general_constant as GC
 
 class RSSManager:
     def __init__(self):
         # make sure storage dirs exist
-        os.makedirs(STORAGE_DIR, exist_ok=True)
-        os.makedirs(LOG_DIR, exist_ok=True)
+        os.makedirs(GC.STORAGE_DIR, exist_ok=True)
+        os.makedirs(GC.LOG_DIR, exist_ok=True)
         self.load_storage()
         self.tasks = {}  # timer thread
 
@@ -21,15 +20,15 @@ class RSSManager:
     # Storage
     # ---------------------
     def load_storage(self):
-        if not os.path.exists(STORAGE_PATH):
+        if not os.path.exists(GC.STORAGE_PATH):
             self.storage = {"rss": {}, "settings": {}}
             self.save_storage()
         else:
-            with open(STORAGE_PATH, "r", encoding="utf-8") as f:
+            with open(GC.STORAGE_PATH, "r", encoding="utf-8") as f:
                 self.storage = json.load(f)
 
     def save_storage(self):
-        with open(STORAGE_PATH, "w", encoding="utf-8") as f:
+        with open(GC.STORAGE_PATH, "w", encoding="utf-8") as f:
             json.dump(self.storage, f, indent=4, ensure_ascii=False)
 
     # ---------------------
@@ -54,13 +53,13 @@ class RSSManager:
     # ---------------------
     def log(self, rss_id: str, text: str):
         # formatted timestamp using project constants
-        ts = datetime.now(ZoneInfo(TIME_ZONE)).strftime(DATETIME_FORMAT)
-        log_path = os.path.join(LOG_DIR, f"{rss_id}.log")
+        ts = datetime.now(ZoneInfo(GC.TIME_ZONE)).strftime(GC.DATETIME_FORMAT)
+        log_path = os.path.join(GC.LOG_DIR, f"{rss_id}.log")
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{ts}] {text}\n")
 
     def get_logs(self, rss_id: str) -> str:
-        log_path = os.path.join(LOG_DIR, f"{rss_id}.log")
+        log_path = os.path.join(GC.LOG_DIR, f"{rss_id}.log")
         if not os.path.exists(log_path):
             return ""
         with open(log_path, "r", encoding="utf-8") as f:
@@ -73,32 +72,36 @@ class RSSManager:
 
         def save_torrent_list():
 
-            torrent_dict = load_torrent_list()
-
-            for entry in feed.entries:
-                torrent_dict[entry.title] = entry.links[1]['href']
-            with open(os.path.join(STORAGE_DIR, f"{rss_id}_torrents_list.json"), "w", encoding="utf-8") as f:
-                json.dump(torrent_dict, f, indent=4, ensure_ascii=False)
-            self.log(rss_id, f"Saved {len(torrent_dict)} torrent links to {rss_id}_torrents_list.json")
-
             def load_torrent_list():
-                torrent_list_path = os.path.join(STORAGE_DIR, f"{rss_id}_torrents_list.json")
+                torrent_list_path = os.path.join(GC.STORAGE_DIR, f"{rss_id}_torrents_list.json")
                 if not os.path.exists(torrent_list_path):
                     self.log(rss_id, f"No torrent list file found: {torrent_list_path}")
                     return {}
                 with open(torrent_list_path, "r", encoding="utf-8") as f:
                     return json.load(f)
 
-        def parse_and_download():
-            
-            new_title = feed.entries[0].title
+            torrent_dict = load_torrent_list()
 
-            if item.last_title != new_title:
+            number_of_new = 0
+            for entry in feed.entries:
+                if entry.title not in torrent_dict:
+                    torrent_dict[entry.title] = entry.links[1]['href']
+                    number_of_new += 1
+            with open(os.path.join(GC.STORAGE_DIR, f"{rss_id}_torrents_list.json"), "w", encoding="utf-8") as f:
+                json.dump(torrent_dict, f, indent=4, ensure_ascii=False)
+            self.log(rss_id, f"Saved {number_of_new} torrent links to {rss_id}_torrents_list.json")
+
+            return torrent_dict
+
+
+        def parse_rss():
+
+            torrents_links = []
+            number_of_new = 0
+
+            if item.last_title != feed.entries[0].title:
                 # RSS updated
-                self.log(rss_id, "New content detected")
-
-                number_of_new = 0
-                torrents_links = []
+                self.log(rss_id, "New torrent detected")
 
                 for entry in feed.entries:
                     if entry.title != item.last_title:
@@ -106,34 +109,59 @@ class RSSManager:
                         number_of_new += 1
 
                 self.log(rss_id, f"{number_of_new} new torrents found")
+            return torrents_links
 
-                # If Transmission settings are not configured, skip sending torrents
-                tx_url = settings.get("transmission_url")
-                tx_port = settings.get("transmission_port", DEFAULT_TRANSMISSION_PORT)
-                if not tx_url:
-                    self.log(rss_id, f"Transmission not configured, skipping sending {number_of_new} torrents")
-                else:
-                    try:
-                        c = Client(host=tx_url,
-                                port=tx_port,
-                                username=settings.get("username", ""),
-                                password=settings.get("password", ""))
-                    except Exception as e:
-                        # Log the connection failure but do not crash the whole application
-                        self.log(rss_id, f"Failed to connect to Transmission: {tx_url}:{tx_port} ({e})")
-                        c = None
 
-                    if c:
-                        for torrent_url in torrents_links:
-                            try:
-                                c.add_torrent(torrent_url, download_dir=item.path)
-                                self.log(rss_id, f"Sent job to {item.path}: {torrent_url}")
-                                # update last_title
-                                item.last_title = new_title
-                            except Exception as e:
-                                self.log(rss_id, f"Failed to send torrent {torrent_url}: {e}")
-        def search_and_download():
-            pass
+        def search_by_keywords(torrent_dict):
+
+            torrent_links = []
+
+            if not item.key_words:
+                self.log(rss_id, "No keywords set, skipping keyword search")
+                return []
+
+            self.log(rss_id, f"Searching for keywords: {item.key_words}")
+
+            key_words = [s.strip() for s in item.key_words.split(';') if s.strip()]
+
+            for key_word in key_words:
+
+                parts = key_word.split()
+
+                for title, link in torrent_dict.items():
+                    if all(part in title for part in parts):
+                        torrent_links.append(link)
+
+            self.log(rss_id, f"Found {len(torrent_links)} torrents matching keywords: {item.key_words}")
+            return torrent_links
+
+
+        def send_links_to_transmission(links: list, new_title: str = ""):
+            # If Transmission settings are not configured, skip sending torrents
+            tx_url = settings.get("transmission_url")
+            tx_port = settings.get("transmission_port", GC.DEFAULT_TRANSMISSION_PORT)
+            if not tx_url:
+                self.log(rss_id, f"Transmission not configured, skipping sending torrents")
+            else:
+                try:
+                    c = Client(host=tx_url,
+                            port=tx_port,
+                            username=settings.get("username", ""),
+                            password=settings.get("password", ""))
+                except Exception as e:
+                    # Log the connection failure but do not crash the whole application
+                    self.log(rss_id, f"Failed to connect to Transmission: {tx_url}:{tx_port} ({e})")
+                    c = None
+
+                if c:
+                    for torrent_url in links:
+                        try:
+                            c.add_torrent(torrent_url, download_dir=item.path)
+                            self.log(rss_id, f"Sent job to {item.path}: {torrent_url}")
+                            # update last_title
+                            item.last_title = new_title
+                        except Exception as e:
+                            self.log(rss_id, f"Failed to send torrent {torrent_url}: {e}")
 
         item = RSSItem(**self.storage["rss"][rss_id])
         settings = self.storage.get("settings", {})
@@ -144,7 +172,7 @@ class RSSManager:
         # fetch failed
         if feed.bozo:
             self.log(rss_id, f"Fetch failed: {feed.bozo_exception}")
-            item.last_fetch = datetime.now(ZoneInfo(TIME_ZONE)).strftime(DATETIME_FORMAT)
+            item.last_fetch = datetime.now(ZoneInfo(GC.TIME_ZONE)).strftime(GC.DATETIME_FORMAT)
             self.storage["rss"][rss_id] = item.dict()
             self.save_storage()
             return
@@ -152,24 +180,23 @@ class RSSManager:
         # Check if feed has entries
         if not feed.entries or len(feed.entries) == 0:
             self.log(rss_id, "RSS feed has no entries")
-            item.last_fetch = datetime.now(ZoneInfo(TIME_ZONE)).strftime(DATETIME_FORMAT)
+            item.last_fetch = datetime.now(ZoneInfo(GC.TIME_ZONE)).strftime(GC.DATETIME_FORMAT)
             self.storage["rss"][rss_id] = item.dict()
             self.save_storage()
             return
 
-        if item.pt_site == 'Audience':
-            save_torrent_list()
-
-        if item.key_words == '' or item.key_words == None:
-            parse_and_download()
+        if GC.PT_SITE_TYPES[item.pt_site] in [GC.FILTER]:
+            torrent_dict = save_torrent_list()
+            torrent_links = search_by_keywords(torrent_dict)
         else:
-            search_and_download()
+            torrent_links = parse_rss()
 
-        item.last_fetch = datetime.now(ZoneInfo(TIME_ZONE)).strftime(DATETIME_FORMAT)
+        send_links_to_transmission(torrent_links, new_title=feed.entries[0].title)
+
+        item.last_fetch = datetime.now(ZoneInfo(GC.TIME_ZONE)).strftime(GC.DATETIME_FORMAT)
         self.storage["rss"][rss_id] = item.dict()
         self.save_storage()
 
-        
 
     # ---------------------
     # Scheduled polling

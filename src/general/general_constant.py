@@ -23,9 +23,11 @@ DEFAULT_PT_SITE = HHCLUB
 SUPPORTED_PT_SITES = [HHCLUB, AUDIENCES]
 
 # PT site type definitions
+DIRECT = 'direct'
+FILTER = 'filter'
 PT_SITE_TYPES = {
-    'HHCLUB': 'direct',        # fetch RSS and download directly
-    'Audiences': 'filter'      # fetch RSS, then filter by keywords before downloading
+    HHCLUB: DIRECT,        # fetch RSS and download directly
+    AUDIENCES: FILTER      # fetch RSS, then filter by keywords before downloading
 }
 
 # Date and time format used in RSS feeds

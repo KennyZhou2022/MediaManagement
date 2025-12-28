@@ -33,6 +33,13 @@ def test_rss_fetch(rss_id: str):
 
 def save_torrent_list(rss_id: str):
 
+    def load_torrent_list():
+        torrent_list_path = os.path.join(STORAGE_DIR, f"{rss_id}_torrents_list.json")
+        if not os.path.exists(torrent_list_path):
+            return {}
+        with open(torrent_list_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+        
     RSS_test = RSSManager()
     RSS_test.load_storage()
 
@@ -47,13 +54,15 @@ def save_torrent_list(rss_id: str):
     with open(os.path.join(STORAGE_DIR, f"{rss_id}_torrents_list.json"), "w", encoding="utf-8") as f:
         json.dump(torrent_dict, f, indent=4, ensure_ascii=False)
 
-    def load_torrent_list():
-        torrent_list_path = os.path.join(STORAGE_DIR, f"{rss_id}_torrents_list.json")
-        if not os.path.exists(torrent_list_path):
-            return {}
-        with open(torrent_list_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+def split_str(s):
+    ss = [sss for sss in s.split(';') if sss.strip()]
+    return ss
+
 
 if __name__ == "__main__":
-    rss_id = 'bc3fad55-ca12-4942-a9ad-43e052b76bde'
-    save_torrent_list(rss_id)
+    # rss_id = "c7a8e9fe-042e-4730-8dba-91a04bb7e8e9"
+    # save_torrent_list(rss_id)
+    str_test = "测试 字符串;分割"
+    print(split_str(str_test))
+    str_test2 = ""
+    print(not str_test2)
