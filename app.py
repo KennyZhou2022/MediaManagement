@@ -1,13 +1,18 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
-import os
 import sys
 
-# Add the src directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "src" / "static"
+
+# Keep imports stable even if the process is started from another working directory.
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from src.rss_manager import RSSManager
 from src.api.routes import router, set_rss_manager
@@ -20,9 +25,8 @@ rss = RSSManager()
 set_rss_manager(rss)
 
 # Mount static files
-static_dir = os.path.join("src", "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,9 +56,9 @@ def startup_event():
 @app.get("/")
 def root():
     # Serve HTML file if it exists, otherwise return API info
-    index_path = os.path.join(static_dir, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path, media_type="text/html")
+    index_path = STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path), media_type="text/html")
     return {
         "message": "RSS to Transmission Manager API",
         "version": get_app_version(),

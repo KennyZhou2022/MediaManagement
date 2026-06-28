@@ -3,6 +3,7 @@ services:
     container_name: media-management
     environment:
       - TZ=Asia/Shanghai
+      - STORAGE_DIR=/app/storage
     image: kenny2023/media-management:latest
     pull_policy: always
     ports:

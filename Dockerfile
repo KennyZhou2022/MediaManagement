@@ -1,7 +1,10 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-	PYTHONDONTWRITEBYTECODE=1
+	PYTHONDONTWRITEBYTECODE=1 \
+	STORAGE_DIR=/app/storage
+
+WORKDIR /app
 
 # Install build deps required by some Python packages (kept minimal)
 RUN apt-get update \
@@ -9,16 +12,16 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
-COPY requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY VERSION /VERSION
-COPY app.py /
-COPY src /src
+COPY VERSION ./VERSION
+COPY app.py ./app.py
+COPY src ./src
 
 # Ensure storage and log directories exist and are writable
-RUN mkdir -p /storage/logs
+RUN mkdir -p /app/storage/logs
 
 EXPOSE 8000
 

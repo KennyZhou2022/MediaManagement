@@ -33,7 +33,7 @@ Then open `http://127.0.0.1:8000/`.
 ```bash
 docker compose up --build
 ```
-Then open `http://localhost:8000/`.
+Then open `http://localhost:38000/` when using the included compose file.
 
 ## Configuration
 - Settings are stored in `storage/storage.json`.
@@ -61,7 +61,8 @@ Then open `http://localhost:8000/`.
 - `GET /api/version`
 
 ## Notes
-- The UI is served from `src/static/index.html`.
+- The UI is served from `src/static/index.html`; frontend runtime assets are self-hosted from `src/static/vendor/`, and Google Fonts are self-hosted from `src/static/fonts/`, so the browser does not need external CDN access.
+- Docker storage is mounted at `/app/storage`; set `STORAGE_DIR` if your deployment uses another path.
 - If Transmission is not configured, checks still run and logs are written, but no torrents are sent.
 - If `storage/storage.json` is missing or invalid JSON, the app auto-recovers with defaults and backs up invalid files.
 - Feed parsing and filter-cache loading now tolerate malformed RSS data and broken local cache files more gracefully.
