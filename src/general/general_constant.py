@@ -27,7 +27,7 @@ def get_app_version():
     return _load_app_version()
 
 # Storage
-STORAGE_DIR = "storage"
+STORAGE_DIR = os.getenv("STORAGE_DIR", "storage")
 STORAGE_PATH = os.path.join(STORAGE_DIR, "storage.json")
 LOG_DIR = os.path.join(STORAGE_DIR, "logs")
 
